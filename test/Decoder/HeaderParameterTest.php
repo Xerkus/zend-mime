@@ -129,14 +129,17 @@ class HeaderParameterTest extends \PHPUnit_Framework_TestCase
 
     public function testParsesRecoverableInvalidParameterStrings()
     {
-        $this->markTestIncomplete();
-        // @TODO assert encoded words in values can be parsed even tho they
-        // are invalid
+        $paramString = 'param="=?UTF-8?Q?=C3=A1z=C3=81Z09-=5F?="';
+        $expectedParams = [
+            'param' => 'ázÁZ09-_',
+        ];
+        $parsedParams = HeaderParameter::parse($paramString);
+        $this->assertEquals($expectedParams, $parsedParams);
     }
 
     /**
      *
-     * @dataProvider provideMalformedParameterStrings
+     * @dataProvider malformedParameterStrings
      */
     public function testParseInvalidShouldThrowException($paramString)
     {
@@ -147,7 +150,7 @@ class HeaderParameterTest extends \PHPUnit_Framework_TestCase
     /**
      * provides malformed parameter strings
      */
-    public function provideMalformedParameterStrings()
+    public function malformedParameterStrings()
     {
         return [
             'missing closing quote' => ['param1=value1;param2="value2;param3=value3'],
