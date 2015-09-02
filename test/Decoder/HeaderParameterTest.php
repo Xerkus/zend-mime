@@ -80,14 +80,13 @@ class HeaderParameterTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals($expectedParams, $parsedParams);
     }
 
-    public function testContinuationIsNotRecognizedWithoutLeadingSection()
+    public function testParametersWithoutLeadingSectionAreIgnored()
     {
         // i suppose this should be handled as regular parameter
         $paramString = 'access-type=URL;
             URL*1="cs.utk.edu/pub/moore/bulk-mailer/bulk-mailer.tar"';
         $expectedParams = [
             'access-type' => 'URL',
-            'URL*1' => 'cs.utk.edu/pub/moore/bulk-mailer/bulk-mailer.tar',
         ];
         $parsedParams = HeaderParameter::parse($paramString);
         $this->assertEquals($expectedParams, $parsedParams);
@@ -102,7 +101,6 @@ class HeaderParameterTest extends \PHPUnit_Framework_TestCase
             continuation*3="not recognized as continuation"';
         $expectedParams = [
             'continuation' => 'part0part1',
-            'continuation*3' => 'not recognized as continuation',
         ];
         $parsedParams = HeaderParameter::parse($paramString);
         $this->assertEquals($expectedParams, $parsedParams);
