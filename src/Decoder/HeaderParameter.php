@@ -110,7 +110,7 @@ class HeaderParameter
         $pattern = '/\G\s*+(?P<name>';
         $pattern .= '(?P<ename>[!#$&+\-.0-9a-zA-Z^_|~]++)';
         $pattern .= '(?>\*(?P<sect>\d+))?(?P<ext>\*)?)\s*+=';
-        $pattern .= '\s*+(?P<val>(?:[^;"]++|"(?:[^\\\"]|\\\.)*")+)\s*+(?:;|$)/';
+        $pattern .= '\s*+(?P<val>(?:[!#$%&+\'\-.0-9a-zA-Z^_|~]++|"(?:[^\\\\"]++|\\\\.)*+"))\s*+(?:;|$)/s';
 
         if ($parameterString === '') {
             return array();
