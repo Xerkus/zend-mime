@@ -13,48 +13,35 @@ class HeaderParameter
 
     protected static $tokenCharGroup = '!#$%&*+\-.0-9a-zA-Z^_|~';
 
+    /**
+     * parses parameters string into array of parameters
+     * inefficent ugly implementation to establish what exactly is needed to be done
+     *
+     * @param mixed $parameterString
+     * @return void
+     */
     public static function parse($parameterString)
     {
-        // inefficent ugly implementation to establish what exactly is needed to be done
-        $parameterString = trim($parameterString);
-        // this pattern is a bitch to read. Should be somewhat optimized tho.
-        // Until better pattern is available
-        $pattern = '/^\s*+(?P<name>';
-        $pattern .= '(?P<ename>[!#$&+\-.0-9a-zA-Z^_|~]++)';
-        $pattern .= '(?>\*(?P<sect>\d+))?(?P<ext>\*)?)\s*+=';
-        $pattern .= '\s*+(?P<val>(?:[^;"]++|"(?:[^\\\"]|\\\.)*")+)\s*+(?:;|$)/';
+        $rawParams = static::parseIntoRaw($parameterString);
 
         $params = [];
         $continuatedParams = [];
         $extendedParams = [];
-        while (strlen($parameterString) > 0) {
-            // This approach is chosen for the ability to fail on malformed
-            // string instead of silently swallowing it and giving unexpected results
-            //
-            // I suppose actual implementation will be more error tolerant.
-            // Also regex parsing alternatives have to be considered
-            if (!preg_match($pattern, $parameterString, $matches)) {
-                // malformed?
-                throw new InvalidArgumentException('Malformed parameters string');
-            }
-
-            $parameterString = substr($parameterString, strlen($matches[0]));
-            $matches['ext'] = !empty($matches['ext']);
-
-            if ($matches['sect'] !== "") {
-                $continuatedParams[$matches['ename']][$matches['sect']] = $matches;
+        foreach ($rawParams as $rawParam) {
+            if ($rawParam['section'] !== false) {
+                $continuatedParams[$rawParam['ename']][$rawParam['section']] = $rawParam;
                 continue;
             }
 
-            if ($matches['ext']) {
-                $parts = explode("'", $matches['val'], 3);
+            if ($rawParam['extended']) {
+                $parts = explode("'", $rawParam['value'], 3);
                 if (!isset($parts[2])) {
                     throw new InvalidArgumentException('Malformed extended parameter');
                 }
                 $encoding = $parts[0];
                 $lang     = $parts[1];
 
-                $extendedParams[$matches['ename']] = self::decodeExtendedValue(
+                $extendedParams[$rawParam['ename']] = self::decodeExtendedValue(
                     $parts[2],
                     $encoding,
                     $lang
@@ -62,7 +49,7 @@ class HeaderParameter
                 continue;
             }
 
-            $params[$matches['name']] = self::decodeParamValue($matches['val']);
+            $params[$rawParam['name']] = self::decodeParamValue($rawParam['value']);
         }
 
         //merge params, regular taking priority over extended
@@ -81,32 +68,78 @@ class HeaderParameter
 
             $encoding = false;
             $lang = false;
-            if ($sections[0]['ext']) {
-                $parts = explode("'", $sections[0]['val'], 3);
+            if ($sections[0]['extended']) {
+                $parts = explode("'", $sections[0]['value'], 3);
                 if (!isset($parts[2])) {
                     throw new InvalidArgumentException('Malformed extended parameter');
                 }
                 $encoding = $parts[0];
                 $lang     = $parts[1];
 
-                $sections[0]['val'] = $parts[2];
+                $sections[0]['value'] = $parts[2];
             }
 
             $completeValue = '';
             for ($i = 0; array_key_exists($i, $sections); $i++) {
-                if ($sections[$i]['ext']) {
+                if ($sections[$i]['extended']) {
                     $completeValue .= self::decodeExtendedValue(
-                        $sections[$i]['val'],
+                        $sections[$i]['value'],
                         $encoding,
                         $lang
                     );
                 } else {
-                    $completeValue .= self::decodeParamValue($sections[$i]['val']);
+                    $completeValue .= self::decodeParamValue($sections[$i]['value']);
                 }
             }
             $params[$name] = $completeValue;
         }
         return $params;
+    }
+
+    /**
+     * Parses parameter string into raw unprocessed parameters
+     *
+     * @param string $parameterString
+     * @return array
+     */
+    public static function parseIntoRaw($parameterString)
+    {
+        $parameterString = trim($parameterString);
+        // this pattern is a bitch to read. Should be somewhat optimized tho.
+        // Until better pattern is available
+        $pattern = '/\G\s*+(?P<name>';
+        $pattern .= '(?P<ename>[!#$&+\-.0-9a-zA-Z^_|~]++)';
+        $pattern .= '(?>\*(?P<sect>\d+))?(?P<ext>\*)?)\s*+=';
+        $pattern .= '\s*+(?P<val>(?:[^;"]++|"(?:[^\\\"]|\\\.)*")+)\s*+(?:;|$)/';
+
+        if ($parameterString === '') {
+            return array();
+        }
+
+        // non-empty parameter string must have at least one parameter
+        if (!preg_match_all($pattern, $parameterString, $matches, PREG_SET_ORDER)) {
+            // malformed?
+            throw new InvalidArgumentException('Malformed parameters string');
+        }
+        $length = 0;
+        // calculate matched length and beautify matches
+        array_walk($matches, function(&$match) use (&$length) {
+            $length += strlen($match['0']);
+            $match = [
+                'name' => $match['name'],
+                'ename' => $match['ename'],
+                'extended' => !empty($match['ext']),
+                'section' => $match['sect'] !== '' ? (int)$match['sect'] : false,
+                'value' => $match['val']
+            ];
+        });
+
+        // parameter string was not parsed completely, malformed syntax
+        if ($length < strlen($parameterString)) {
+            throw new InvalidArgumentException('Malformed parameters string');
+        }
+
+        return $matches;
     }
 
     public static function encode(array $parameters)
